@@ -12,7 +12,7 @@ use stdClass;
 /**
  * Autopay class helps making all request to BNI Autopay SNAP API
  *
- * @version 0.1.0
+ * @version 0.1.1
  */
 class Autopay
 {
@@ -39,6 +39,20 @@ class Autopay
     private string $clientID     = '';
     private string $clientSecret = '';
     private string $privateKey   = '';
+
+    // OTP Reason Code
+    const OTP_CODE_CARD_REGISTRATION_SET_LIMIT = '02';
+    const OTP_CODE_ACCOUNT_UNBINDING           = '09';
+    const OTP_CODE_FORCE_DEBIT                 = '53';
+    const OTP_CODE_DIRECT_DEBIT                = '54';
+
+    // Service Code
+    const SERVICECODE_DEBIT  = '54';
+    const SERVICECODE_REFUND = '58';
+
+    // Refund Type
+    const REFUND_TYPE_FULL    = 'full';
+    const REFUND_TYPE_PARTIAL = 'partial';
 
     /**
      * Autopay constructor
@@ -93,7 +107,7 @@ class Autopay
      * @param string $timestamp timestamp (date(c))
      * @return string signature token
      */
-    private function getSignatureToken($timestamp = '')
+    public function getSignatureToken($timestamp = '')
     {
         return $this->utils->generateSignatureAccessToken(
             $this->clientID,
@@ -137,7 +151,7 @@ class Autopay
      * @param array $data request body
      * @return string signature service
      */
-    private function getSignatureService($token = '', $serviceUrl = '', $data = [])
+    public function getSignatureService($token = '', $serviceUrl = '', $data = [])
     {
         return $this->utils->generateSignatureService(
             'POST',
@@ -223,14 +237,14 @@ class Autopay
         $data = [
             'partnerReferenceNo' => $partnerReferenceNo,
             'merchantId' => $this->merchantID,
-            'additionalData' => [
+            'additionalInfo' => [
+                'custIdMerchant' => $custIdMerchant,
                 'bankAccountNo' => $bankAccountNo,
                 'bankCardNo'    => $bankCardNo,
                 'limit'         => (string) $limit,
-                'email'         => $email
             ],
-            'additionalInfo' => [
-                'custIdMerchant' => $custIdMerchant
+            'additionalData' => [
+                'email'         => $email
             ]
         ];
 
@@ -263,10 +277,10 @@ class Autopay
         $data = [
             'merchantId'         => $this->merchantID,
             'partnerReferenceNo' => $partnerReferenceNo,
-            'otp'                => $otp,
-            'bankCardToken'      => $bankCardToken,
-            'chargeToken'        => $chargeToken,
             'additionalInfo' => [
+                'otp'            => $otp,
+                'bankCardToken'  => $bankCardToken,
+                'chargeToken'    => $chargeToken,
                 'custIdMerchant' => $custIdMerchant
             ]
         ];
@@ -339,11 +353,14 @@ class Autopay
             'chargeToken'        => $chargeToken,
             'otp'                => $otp,
             'amount'             => [
-                'value'    => (string) $amount['value'],
+                'value'    => (string) $this->utils->formatAmount($amount['value']),
                 'currency' => $amount['currency']
             ],
-            'remark'             => $remark,
-            'additionalInfo'     => new stdClass()
+            'additionalInfo'     => [
+                'remark'          => $remark,
+                // new field, should be from parameter (?)
+                'transactionDate' => date('c')
+            ]
         ];
         
         $response = $this->sendRequest(Constant::URL_AUTOPAY_DEBIT, $token, $data, $timeStamp);
@@ -365,13 +382,13 @@ class Autopay
         string $partnerRefundNo,
         array $refundAmount = ['value' => 0.00, 'currency' => 'IDR'],
         string $reason = '',
-        string $refundType = 'full'
+        string $refundType = self::REFUND_TYPE_FULL
     )
     {
         $token = $this->getToken();
         $timeStamp = $this->utils->getTimeStamp();
 
-        if (!in_array($refundType, ['full', 'partial'])) {
+        if (!in_array($refundType, [self::REFUND_TYPE_FULL, self::REFUND_TYPE_PARTIAL])) {
             throw new \InvalidArgumentException('refundType should be full or partial');
         }
 
@@ -401,7 +418,7 @@ class Autopay
      * Debit Status (get the status of a transaction or refund)
      *
      * @param string $originalPartnerReferenceNo refers to partnerReferenceNo on Debit API
-     * @param string $transactionDate date of the transaction in YYYYMMDD format
+     * @param string $transactionDate in ISO format (returned from Debit API, field `paymentDate`)
      * @param string $serviceCode 54 for Debit, 58 for Refund
      * @param array $amount detail of an amount, should consist of value and currency
      * @return Object
@@ -409,7 +426,7 @@ class Autopay
     public function debitStatus(
         string $originalPartnerReferenceNo,
         string $transactionDate,
-        string $serviceCode = '54',
+        string $serviceCode = self::SERVICECODE_DEBIT,
         array $amount = ['value' => 0.00, 'currency' => 'IDR']
     )
     {
@@ -455,7 +472,7 @@ class Autopay
             'partnerReferenceNo' => $partnerReferenceNo,
             'bankCardToken'      => $bankCardToken,
             'additionalInfo'     => [
-                'amount' => (string) $amount
+                'amount' => (string) $this->utils->formatAmount($amount)
             ]
         ];
         
@@ -478,7 +495,7 @@ class Autopay
         string $partnerReferenceNo,
         string $journeyID,
         string $bankCardToken,
-        string $otpReasonCode = '54',
+        string $otpReasonCode = self::OTP_CODE_DIRECT_DEBIT,
         array $additionalInfo = ['expiredOtp' => ''],
         string $externalStoreId = ''
     )
@@ -488,19 +505,19 @@ class Autopay
 
         // set otpReasonMessage based on otpReasonCode (also minimize the number of func arguments)
         switch ($otpReasonCode) {
-            case '02':
+            case self::OTP_CODE_CARD_REGISTRATION_SET_LIMIT:
                 $otpReasonMessage = 'Card Registration Set Limit';
                 break;
             
-            case '09':
+            case self::OTP_CODE_ACCOUNT_UNBINDING:
                 $otpReasonMessage = 'Account Unbinding';
                 break;
             
-            case '53':
+            case self::OTP_CODE_FORCE_DEBIT:
                 $otpReasonMessage = 'Force Debit';
                 break;
             
-            case '54':
+            case self::OTP_CODE_DIRECT_DEBIT:
                 $otpReasonMessage = 'Direct Debit';
                 break;
 
