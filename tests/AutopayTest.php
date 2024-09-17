@@ -2,7 +2,6 @@
 namespace Tests\Unit;
 
 use BniApi\BniPhp\api\Autopay;
-use Codeception\Stub;
 
 /**
  * Class AutopayTest
@@ -28,6 +27,10 @@ class AutopayTest extends \Codeception\Test\Unit
     const RESP_CODE_OTP               = '2008100';
     const RESP_CODE_OTP_VERIFY        = '2000400';
     const RESP_CODE_SET_LIMIT         = '2000200';
+    const RESP_CODE_SET_LIMIT_PENDING = '2020200';
+
+    // Bank card token is like the "customer ID", returned from Account Binding
+    const BANK_CARD_TOKEN = 'ozHO0Xb4voGihPiKv3sdimuI7Ye3gp4nc2jnUtUz30ZM4jQGLfFde3jLA5aGqNhMFTTxANckFIsYbzfUniildhALKbzOC65jwMgTqc2p4oEsJ2xrqTvnxrActFIiq7yI';
 
     /**
      * Set initial value
@@ -42,7 +45,7 @@ class AutopayTest extends \Codeception\Test\Unit
             $credentials->clientID,
             $credentials->clientSecret,
             $credentials->privateKey,
-            'alpha'
+            Autopay::ENV_ALPHA
         );
     }
 
@@ -77,25 +80,11 @@ class AutopayTest extends \Codeception\Test\Unit
         $this->assertNotNull($accessToken);
     }
 
-    /**
-     * experimental
-     * @skip
-     */
-    public function testGetSignatureService()
-    {
-        $signatureService = $this->autopay->getSignatureService(
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbGllbnRJZCI6IjEyMzQ1NjEyMzQ1NjEyMzQ1NjEyMzQ1NjEyMzQ1NjEyMzQ1NyIsImV4cCI6MTY5MjU3OTQ2NCwianRpIjoiMjQ3ZGNhYTMtMDczNC00MjBhLTk3OTQtNzI5NDcwZjFkNDgzIiwiaWF0IjoxNjkyNTc4NTY0LCJuYmYiOjE2OTI1Nzg1NjR9.akTVobm53Ku4me6dZW3Ka4isaNKANg6RpUhfOZwx2u0',
-            '/v1.0/registration-account-binding',
-            []);
-        
-        $this->assertNotNull($signatureService);
-    }
-
     public function testAccountBinding()
     {
-        $partnerReferenceNo = '123456789009876544011';
-        $bankAccountNo = '9234567890';
-        $bankCardNo = '92345678902788';
+        $partnerReferenceNo = '123456989009876544020';
+        $bankAccountNo = '1234555557';
+        $bankCardNo = '92345678902998';
         $limit = 250000.00;
         $email = 'burhanaji2@gmail.com';
         $custIdMerchant = '92345678902788';
@@ -113,154 +102,37 @@ class AutopayTest extends \Codeception\Test\Unit
         $this->assertEquals($response->responseCode, self::RESP_CODE_ACCOUNT_BINDING);
     }
 
-    public function testAccountUnbinding()
+    public function testVerifyOtp()
     {
-        $partnerReferenceNo = '8412442037020809301266044471028449546314372628686173676019995122';
-        $bankCardToken =
-            'xrk3L9uuxz9RPYaKjXGK7dQpD1jeUzYIHfb3mTrMQ8Eplpautpv9hm2C53a0191PuUcgTQBlkI' .
-            'RO8Y4Vnd98ITSSsi55EUJmf95qwbkNXqH9S4sndznG6HtZNa6mHg31';
-        $chargeToken = 'qsUv9eFPysSwz5m3alrn1j9Hba3nbY';
-        $otp = '631990';
-        $custIdMerchant = '12313213131';
-        
-        $response = $this->autopay->accountUnbinding(
-            $partnerReferenceNo,
-            $bankCardToken,
+        $originalPartnerReferenceNo = '123456989009876544020';
+        $originalReferenceNo        = '6816517742983299400125440638471568809774524587798161498336361836';
+        $chargeToken                = '39ePbCMEQzAhpKR0bMdCCKU4SKt5Fm';
+        $otp                        = '675903';
+
+        $response = $this->autopay->verifyOtp(
+            $originalPartnerReferenceNo,
+            $originalReferenceNo,
             $chargeToken,
             $otp,
-            $custIdMerchant
         );
 
         codecept_debug($response);
 
-        $this->assertEquals($response->responseCode, self::RESP_CODE_ACCOUNT_UNBINDING);
-    }
-
-    public function testBalanceInquiry()
-    {
-        $partnerReferenceNo = '2023102899999992999902';
-        $accountNo = '9234567890';
-        $amount = 1000.00;
-        $bankCardToken =
-            'xrk3L9uuxz9RPYaKjXGK7dQpD1jeUzYIHfb3mTrMQ8Eplpautpv9hm2C53a0191PuUcgTQBlkI' .
-            'RO8Y4Vnd98ITSSsi55EUJmf95qwbkNXqH9S4sndznG6HtZNa6mHg31';
-
-        $response = $this->autopay->balanceInquiry(
-            $partnerReferenceNo,
-            $accountNo,
-            $amount,
-            $bankCardToken
-        );
-
-        codecept_debug($response);
-
-        $this->assertEquals($response->responseCode, self::RESP_CODE_BALANCE_INQUIRY);
-    }
-
-    public function testDebit()
-    {
-        $partnerReferenceNo = '2023102899999999999964';
-        $bankCardToken      =
-            'xrk3L9uuxz9RPYaKjXGK7dQpD1jeUzYIHfb3mTrMQ8Eplpautpv9hm2C53a0191PuUcgTQBlkI' .
-            'RO8Y4Vnd98ITSSsi55EUJmf95qwbkNXqH9S4sndznG6HtZNa6mHg31';
-        $chargeToken = 'riZv2AfElsJqRVwYWYTzU3AVddI0qg';
-        $otp         = '';
-        $amount      = [
-            'value'    => '1000.00',
-            'currency' => 'IDR'
-        ];
-        $remark      = 'remark';
-        
-        $response = $this->autopay->debit(
-            $partnerReferenceNo,
-            $bankCardToken,
-            $chargeToken,
-            $otp,
-            $amount,
-            $remark
-        );
-
-        $this->assertEquals($response->responseCode, self::RESP_CODE_DEBIT);
-    }
-
-    public function testDebitRefund()
-    {
-        $originalPartnerReferenceNo = '2023102899999999999964';
-        $partnerRefundNo            = '2023102899999999991889';
-        $refundAmount               = [
-            'value'    => 200.00,
-            'currency' => 'IDR'
-        ];
-        $reason     = 'Complaint from customer';
-        $refundType = 'partial';// full or partial
-        
-        $response = $this->autopay->debitRefund(
-            $originalPartnerReferenceNo,
-            $partnerRefundNo,
-            $refundAmount,
-            $reason,
-            $refundType
-        );
-        codecept_debug($response);
-
-        $this->assertEquals($response->responseCode, self::RESP_CODE_DEBIT_REFUND);
-    }
-
-    public function testDebitStatus()
-    {
-        $originalPartnerReferenceNo = '2023102899999999999964';
-        $transactionDate = date('Ymd');
-        $serviceCode       = '58'; // or 58 for refund
-        $amount            = [
-            'value'    => 1000.00,
-            'currency' => 'IDR'
-        ];
-        
-        $response = $this->autopay->debitStatus(
-            $originalPartnerReferenceNo,
-            $transactionDate,
-            $serviceCode,
-            $amount
-        );
-
-        codecept_debug($response);
-
-        $this->assertEquals($response->responseCode, self::RESP_CODE_DEBIT_STATUS);
-    }
-
-    public function testLimitInquiry()
-    {
-        $partnerReferenceNo = '2020102900000000200001';
-        $bankCardToken      =
-            'xrk3L9uuxz9RPYaKjXGK7dQpD1jeUzYIHfb3mTrMQ8Eplpautpv9hm2C53a0191PuUcgTQBlkI' .
-            'RO8Y4Vnd98ITSSsi55EUJmf95qwbkNXqH9S4sndznG6HtZNa6mHg31';
-        $accountNo          = '9234567890';
-        $amount             = 200000.00;
-        
-        $response = $this->autopay->limitInquiry(
-            $partnerReferenceNo,
-            $bankCardToken,
-            $accountNo,
-            $amount,
-        );
-
-        codecept_debug($response);
-
-        $this->assertEquals($response->responseCode, self::RESP_CODE_LIMIT_INQUIRY);
+        $this->assertEquals($response->responseCode, self::RESP_CODE_OTP_VERIFY);
     }
 
     public function testOtp()
     {
-        $partnerReferenceNo = '2023102899929999999222';
-        $journeyID          = '12345678100987651198';
-        $bankCardToken      =
-            'xrk3L9uuxz9RPYaKjXGK7dQpD1jeUzYIHfb3mTrMQ8Eplpautpv9hm2C53a0191PuUcgTQBlkI' .
-            'RO8Y4Vnd98ITSSsi55EUJmf95qwbkNXqH9S4sndznG6HtZNa6mHg31';
-        $otpReasonCode    = '09';
+        $partnerReferenceNo = '2024102899929999999233';
+        $journeyID          = '1234568810198000019';
+        $bankCardToken      = self::BANK_CARD_TOKEN;
+        $otpReasonCode    = Autopay::OTP_CODE_DIRECT_DEBIT;
         $additionalInfo   = [
             'expiredOtp' => date('c', strtotime('+300 seconds')),
         ];
-        $externalStoreId = '134928924942479';
+
+        // generate external store ID from random number
+        $externalStoreId = rand(10, 100000000) . time();
 
         $this->autopay->setHeader('externalID', $journeyID);
 
@@ -278,34 +150,151 @@ class AutopayTest extends \Codeception\Test\Unit
         $this->assertEquals($response->responseCode, self::RESP_CODE_OTP);
     }
 
-    public function testVerifyOtp()
+    public function testDebit()
     {
-        $originalPartnerReferenceNo = '123456789009876544011';
-        $originalReferenceNo        = '8412442037020809301266044471028449546314372628686173676019995137';
-        $chargeToken                = 'pYtWBW9MjYFL8KlGkzTv5Wv8dqnCKa';
-        $otp                        = '178128';
-
-        $response = $this->autopay->verifyOtp(
-            $originalPartnerReferenceNo,
-            $originalReferenceNo,
+        $partnerReferenceNo = '2023102899999999999991';
+        $bankCardToken      = self::BANK_CARD_TOKEN;
+        $chargeToken = 'edh5OJ3b3nRZfvIgrhyEY0thvXy1XB';
+        $otp         = '';
+        $amount      = [
+            'value'    => '2.00',
+            'currency' => 'IDR'
+        ];
+        $remark      = 'remark';
+        
+        $response = $this->autopay->debit(
+            $partnerReferenceNo,
+            $bankCardToken,
             $chargeToken,
             $otp,
+            $amount,
+            $remark
         );
 
         codecept_debug($response);
 
-        $this->assertEquals($response->responseCode, self::RESP_CODE_OTP_VERIFY);
+        $this->assertEquals($response->responseCode, self::RESP_CODE_DEBIT);
+    }
+
+    public function testDebitStatus()
+    {
+        $originalPartnerReferenceNo = '2023102899999999999991';
+        $transactionDate = '2024-09-13T17:55:39+07:00';
+        $serviceCode       = Autopay::SERVICECODE_DEBIT;
+        $amount            = [
+            'value'    => 2.00,
+            'currency' => 'IDR'
+        ];
+        
+        $response = $this->autopay->debitStatus(
+            $originalPartnerReferenceNo,
+            $transactionDate,
+            $serviceCode,
+            $amount
+        );
+
+        codecept_debug($response);
+
+        $this->assertEquals($response->responseCode, self::RESP_CODE_DEBIT_STATUS);
+    }
+
+    public function testDebitRefund()
+    {
+        $originalPartnerReferenceNo = '2023102899999999999991';
+        $partnerRefundNo            = '2023102899999999991992';
+        $refundAmount               = [
+            'value'    => 2.00,
+            'currency' => 'IDR'
+        ];
+        $reason     = 'Complaint from customer';
+        $refundType = Autopay::REFUND_TYPE_FULL;// full or partial
+        
+        $response = $this->autopay->debitRefund(
+            $originalPartnerReferenceNo,
+            $partnerRefundNo,
+            $refundAmount,
+            $reason,
+            $refundType
+        );
+        codecept_debug($response);
+
+        $this->assertEquals($response->responseCode, self::RESP_CODE_DEBIT_REFUND);
+    }
+
+    public function testBalanceInquiry()
+    {
+        $partnerReferenceNo = '20231028999999929988893';
+        $accountNo = '1234555557';
+        $amount = 1000.00;
+        $bankCardToken = self::BANK_CARD_TOKEN;
+
+        $response = $this->autopay->balanceInquiry(
+            $partnerReferenceNo,
+            $accountNo,
+            $amount,
+            $bankCardToken
+        );
+
+        codecept_debug($response);
+
+        $this->assertEquals($response->responseCode, self::RESP_CODE_BALANCE_INQUIRY);
+    }
+
+    public function testLimitInquiry()
+    {
+        $partnerReferenceNo = '2020102900000000200003';
+        $bankCardToken = self::BANK_CARD_TOKEN;
+        $accountNo          = '1234555557';
+        $amount             = 200000.00;
+        
+        $response = $this->autopay->limitInquiry(
+            $accountNo,
+            $partnerReferenceNo,
+            $bankCardToken,
+            $amount
+        );
+
+        codecept_debug($response);
+
+        $this->assertEquals($response->responseCode, self::RESP_CODE_LIMIT_INQUIRY);
+    }
+
+    public function testOtpSetLimit()
+    {
+        $partnerReferenceNo = '2024102899929999999236';
+        $journeyID          = '1234568810198001022';
+        $bankCardToken      = self::BANK_CARD_TOKEN;
+        $otpReasonCode    = Autopay::OTP_CODE_CARD_REGISTRATION_SET_LIMIT;
+        $additionalInfo   = [
+            'expiredOtp' => date('c', strtotime('+300 seconds')),
+        ];
+
+        // generate external store ID from random number
+        $externalStoreId = rand(10, 100000000) . time();
+
+        $this->autopay->setHeader('externalID', $journeyID);
+
+        $response = $this->autopay->otp(
+            $partnerReferenceNo,
+            $journeyID,
+            $bankCardToken,
+            $otpReasonCode,
+            $additionalInfo,
+            $externalStoreId,
+        );
+
+        codecept_debug($response);
+
+        $this->assertEquals($response->responseCode, self::RESP_CODE_OTP);
     }
 
     public function testSetLimit()
     {
-        $partnerReferenceNo = '2023102899929999999964';
-        $bankCardToken      =
-            'xrk3L9uuxz9RPYaKjXGK7dQpD1jeUzYIHfb3mTrMQ8Eplpautpv9hm2C53a0191PuUcgTQBlkI' .
-            'RO8Y4Vnd98ITSSsi55EUJmf95qwbkNXqH9S4sndznG6HtZNa6mHg31';
-        $limit              = 500000.00;
-        $otp                = '708625';
-        $chargeToken        = 'DAoMiuvkljcQ0u9r7qgaRsfl2ADppa';
+        $partnerReferenceNo = '2023102899929999999968';
+        $bankCardToken = self::BANK_CARD_TOKEN;
+        $limit              = 1000000.00;
+        $otp                = '881873';
+        $chargeToken        = 'UkLo4dS8wHHfOmwX2MOz5Se3gw4fJn';
 
         $response = $this->autopay->setLimit(
             $partnerReferenceNo,
@@ -317,6 +306,62 @@ class AutopayTest extends \Codeception\Test\Unit
 
         codecept_debug($response);
 
-        $this->assertEquals($response->responseCode, self::RESP_CODE_SET_LIMIT);
+        $this->assertContains(
+            $response->responseCode, 
+            [
+                self::RESP_CODE_SET_LIMIT, // applied immediately
+                self::RESP_CODE_SET_LIMIT_PENDING // the changes will be applied at 00:00 / next day
+            ]
+        );
+    }
+
+    public function testOtpAccountUnbinding()
+    {
+        $partnerReferenceNo = '2024103899929999999233';
+        $journeyID          = '1234568810198040000';
+        $bankCardToken      = self::BANK_CARD_TOKEN;
+        $otpReasonCode    = Autopay::OTP_CODE_ACCOUNT_UNBINDING;
+        $additionalInfo   = [
+            'expiredOtp' => date('c', strtotime('+300 seconds')),
+        ];
+
+        // generate external store ID from random number
+        $externalStoreId = rand(10, 100000000) . time();
+
+        $this->autopay->setHeader('externalID', $journeyID);
+
+        $response = $this->autopay->otp(
+            $partnerReferenceNo,
+            $journeyID,
+            $bankCardToken,
+            $otpReasonCode,
+            $additionalInfo,
+            $externalStoreId,
+        );
+
+        codecept_debug($response);
+
+        $this->assertEquals($response->responseCode, self::RESP_CODE_OTP);
+    }
+
+    public function testAccountUnbinding()
+    {
+        $partnerReferenceNo = '2023102899929999999969';
+        $bankCardToken      = self::BANK_CARD_TOKEN;
+        $chargeToken        = 'V2P7VpYzNlgf33YSAi9vWS0USHK989';
+        $otp                = '250286';
+        $custIdMerchant     = '12313213131';
+        
+        $response = $this->autopay->accountUnbinding(
+            $partnerReferenceNo,
+            $bankCardToken,
+            $chargeToken,
+            $otp,
+            $custIdMerchant
+        );
+
+        codecept_debug($response);
+
+        $this->assertEquals($response->responseCode, self::RESP_CODE_ACCOUNT_UNBINDING);
     }
 }
