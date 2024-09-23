@@ -2,6 +2,7 @@
 namespace Tests\Unit;
 
 use BniApi\BniPhp\api\Autopay;
+use Faker;
 
 /**
  * Class AutopayTest
@@ -30,7 +31,7 @@ class AutopayTest extends \Codeception\Test\Unit
     const RESP_CODE_SET_LIMIT_PENDING = '2020200';
 
     // Bank card token is like the "customer ID", returned from Account Binding
-    const BANK_CARD_TOKEN = 'ozHO0Xb4voGihPiKv3sdimuI7Ye3gp4nc2jnUtUz30ZM4jQGLfFde3jLA5aGqNhMFTTxANckFIsYbzfUniildhALKbzOC65jwMgTqc2p4oEsJ2xrqTvnxrActFIiq7yI';
+    const BANK_CARD_TOKEN = '6wJ9jGYoh43jCpmUeiOiViEVCQtp6MX4zeLn2h4YfPrkEIsFhBrgCi56zJe1sEF1AZW1TKbs1ddorhkyE77gi27rotwMSXvRFKv7OPTnoxiRWDFzMaesoAjvWTa0qB9h';
 
     /**
      * Set initial value
@@ -123,8 +124,8 @@ class AutopayTest extends \Codeception\Test\Unit
 
     public function testOtp()
     {
-        $partnerReferenceNo = '2024102899929999999233';
-        $journeyID          = '1234568810198000019';
+        $partnerReferenceNo = '2024102899929999999234';
+        $journeyID          = '1234568810198000020';
         $bankCardToken      = self::BANK_CARD_TOKEN;
         $otpReasonCode    = Autopay::OTP_CODE_DIRECT_DEBIT;
         $additionalInfo   = [
@@ -152,10 +153,10 @@ class AutopayTest extends \Codeception\Test\Unit
 
     public function testDebit()
     {
-        $partnerReferenceNo = '2023102899999999999991';
-        $bankCardToken      = self::BANK_CARD_TOKEN;
-        $chargeToken = 'edh5OJ3b3nRZfvIgrhyEY0thvXy1XB';
-        $otp         = '';
+        $partnerReferenceNo = '3793473647503';
+        $bankCardToken      = '71VDki7JGwRhM0ILh1Tt7cDvTGYf6SLURX0p4kZToQAy800Yduw0M149wfjnfYwabmUtlsOx5Hy0o3kdpZ6awmaOiDQlME2R5uTUH9QWT9vBRJkdB89gYDDCmhmmggD7';
+        $chargeToken = 'YrB9V11JNAu3WO0aiw7pYsRVmdb340';
+        $otp         = '413763';
         $amount      = [
             'value'    => '2.00',
             'currency' => 'IDR'
@@ -291,7 +292,7 @@ class AutopayTest extends \Codeception\Test\Unit
     public function testSetLimit()
     {
         $partnerReferenceNo = '2023102899929999999968';
-        $bankCardToken = self::BANK_CARD_TOKEN;
+        $bankCardToken      = self::BANK_CARD_TOKEN;
         $limit              = 1000000.00;
         $otp                = '881873';
         $chargeToken        = 'UkLo4dS8wHHfOmwX2MOz5Se3gw4fJn';
@@ -363,5 +364,295 @@ class AutopayTest extends \Codeception\Test\Unit
         codecept_debug($response);
 
         $this->assertEquals($response->responseCode, self::RESP_CODE_ACCOUNT_UNBINDING);
+    }
+
+    /**
+     * Main flow test, used for testing the "whole" process
+     * from Account Binding, Debit, etc, to Account Unbinding.
+     * 
+     * @skip
+     */
+    public function testMainFlow()
+    {
+        $faker = Faker\Factory::create();
+        
+        // Account Binding ====================================
+        $sequence = '01';
+        $basePartnerReferenceNo = $faker->numerify('###############');
+        $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
+        $bankAccountNo      = $faker->numerify('##########');
+        $bankCardNo         = $faker->randomNumber(4, true);
+        $limit              = 250000.00;
+        $email              = $faker->email();
+        $custIdMerchant     = $faker->numerify('##########');
+        
+        $response = $this->autopay->accountBinding(
+            $partnerReferenceNo,
+            $bankAccountNo,
+            $bankCardNo,
+            $limit,
+            $email,
+            $custIdMerchant
+        );
+
+        codecept_debug($response);
+        $this->assertEquals($response->responseCode, self::RESP_CODE_ACCOUNT_BINDING);
+        
+        $otpCode = readline('Please input the OTP before run testVerifyOtp: ');
+
+        // Verify OTP ========================================
+        $verifyOtpResponse = $this->autopay->verifyOtp(
+            $partnerReferenceNo, // originalPartnerReferenceNo
+            $response->referenceNo ?? '', // originalReferenceNo
+            $response->additionalInfo->chargeToken ?? '',
+            (string) $otpCode,
+        );
+
+        codecept_debug($verifyOtpResponse);
+        $this->assertEquals($verifyOtpResponse->responseCode, self::RESP_CODE_OTP_VERIFY);
+
+        // save bank card token for the following process
+        $bankCardToken = $verifyOtpResponse->bankCardToken ?? '';
+
+        sleep(1);
+
+        // OTP Before Debit =================================
+        $sequence = '02';
+        $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
+        $journeyID = $faker->numerify('###################');
+        $otpReasonCode = Autopay::OTP_CODE_DIRECT_DEBIT;
+        
+        $this->autopay->setHeader('externalID', $journeyID);
+        $externalStoreId = $faker->numerify('#############');
+        sleep(1);
+
+        $otpResponse = $this->autopay->otp(
+            $partnerReferenceNo,
+            $journeyID,
+            $bankCardToken,
+            $otpReasonCode,
+            ['expiredOtp' => date('c', strtotime('+300 seconds'))],// additionalInfo
+            $externalStoreId
+        );
+
+        codecept_debug($otpResponse);
+        $this->assertEquals($otpResponse->responseCode, self::RESP_CODE_OTP);
+
+        sleep(1);
+
+        // Debit ============================================
+        $sequence = '03';
+        $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
+        $chargeToken = $otpResponse->chargeToken ?? '';
+        
+        $otpDebitCode = readline('Please input the OTP before run testDebit: ');
+        $amount = readline('Amount: ');
+        if (empty($amount)) {
+            $amount = 2.00;
+        }
+        $remark = 'remark';
+
+        $this->autopay->setHeader('externalID', null); // clear the header
+
+        $debitResponse = $this->autopay->debit(
+            $partnerReferenceNo,
+            $bankCardToken,
+            $chargeToken,
+            $otpDebitCode,
+            [
+                'value'    => $amount,
+                'currency' => 'IDR'
+            ],
+            (string) $remark
+        );
+
+        codecept_debug($debitResponse);
+        $this->assertEquals($debitResponse->responseCode, self::RESP_CODE_DEBIT);
+
+        sleep(1);
+
+        // Debit Status =====================================
+        $paymentDate = $debitResponse->additionalInfo->paymentDate ?? '';
+
+        $debitStatusResponse = $this->autopay->debitStatus(
+            $partnerReferenceNo, // originalPartnerReferenceNo == debit partnerReferenceNo
+            $paymentDate,
+            Autopay::SERVICECODE_DEBIT,
+            [
+                'value'    => $amount,
+                'currency' => 'IDR'
+            ]
+        );
+
+        codecept_debug($debitStatusResponse);
+        $this->assertEquals($debitStatusResponse->responseCode, self::RESP_CODE_DEBIT_STATUS);
+
+        sleep(1);
+
+        // Debit Refund Full ===============================
+        $sequence = '04';
+        $partnerRefundNo = $basePartnerReferenceNo . $sequence;
+        $refundAmount = [
+            'value'    => $amount,
+            'currency' => 'IDR'
+        ];
+        $reason = 'Complaint from customer';
+        $refundType = Autopay::REFUND_TYPE_FULL;// full or partial
+
+        $refundResponse = $this->autopay->debitRefund(
+            $partnerReferenceNo, // originalPartnerReferenceNo == debit partnerReferenceNo
+            $partnerRefundNo,
+            $refundAmount,
+            $reason,
+            $refundType
+        );
+
+        codecept_debug($refundResponse);
+        $this->assertEquals($refundResponse->responseCode, self::RESP_CODE_DEBIT_REFUND);
+
+        sleep(1);
+
+        // Balance Inquiry ================================
+        $sequence = '05';
+        $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
+
+        $balanceInquiryResponse = $this->autopay->balanceInquiry(
+            $partnerReferenceNo,
+            $bankAccountNo,
+            $amount,
+            $bankCardToken
+        );
+
+        codecept_debug($balanceInquiryResponse);
+        $this->assertEquals($balanceInquiryResponse->responseCode, self::RESP_CODE_BALANCE_INQUIRY);
+
+        sleep(1);
+
+        // Limit Inquiry ==================================
+        $sequence = '06';
+        $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
+
+        $limitInquiryAmount = 200000.00;
+
+        $limitInquiryResponse = $this->autopay->limitInquiry(
+            $bankAccountNo,
+            $partnerReferenceNo,
+            $bankCardToken,
+            $limitInquiryAmount
+        );
+
+        codecept_debug($limitInquiryResponse);
+        $this->assertEquals($limitInquiryResponse->responseCode, self::RESP_CODE_LIMIT_INQUIRY);
+        
+        sleep(1);
+
+        // OTP Set Limit ==================================
+        $sequence = '07';
+        $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
+        $journeyID = $faker->numerify('###########');
+        $otpReasonCode = Autopay::OTP_CODE_CARD_REGISTRATION_SET_LIMIT;
+        $this->autopay->setHeader('externalID', $journeyID);
+        $externalStoreId = $faker->numerify('#############');
+
+        $otpResponse = $this->autopay->otp(
+            $partnerReferenceNo,
+            $journeyID,
+            $bankCardToken,
+            $otpReasonCode,
+            ['expiredOtp' => date('c', strtotime('+300 seconds'))],// additionalInfo
+            $externalStoreId,
+        );
+
+        codecept_debug($otpResponse);
+        $this->assertEquals($otpResponse->responseCode, self::RESP_CODE_OTP);
+
+        sleep(1);
+
+        // Set Limit ======================================
+        $sequence = '08';
+        $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
+
+        $otpCode = readline('Please input the OTP before run testSetLimit: ');
+        $newLimit = readline('New Limit (prev 250000.00): ');
+        $chargeToken = $otpResponse->chargeToken ?? '';
+
+        // will cause the response to be "Conflict" if the header is not cleared
+        $this->autopay->setHeader('externalID', null);
+
+        $setLimitResponse = $this->autopay->setLimit(
+            $partnerReferenceNo,
+            $bankCardToken,
+            $newLimit,
+            $chargeToken,
+            $otpCode
+        );
+        
+        codecept_debug($setLimitResponse);
+        if ($newLimit > $limit) {
+            // applied immediately
+            $this->assertEquals($setLimitResponse->responseCode, self::RESP_CODE_SET_LIMIT);
+        } else {
+            // the changes will be applied at 00:00 / next day
+            $this->assertEquals($setLimitResponse->responseCode, self::RESP_CODE_SET_LIMIT_PENDING);
+        }
+
+        sleep(1);
+
+        // OTP Account Unbinding ===========================
+        $sequence = '09';
+        $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
+        $journeyID = $faker->numerify('###########');
+        $otpReasonCode = Autopay::OTP_CODE_ACCOUNT_UNBINDING;
+        $this->autopay->setHeader('externalID', $journeyID);
+        
+        $externalStoreId = $faker->numerify('#############');
+
+        $otpResponse = $this->autopay->otp(
+            $partnerReferenceNo,
+            $journeyID,
+            $bankCardToken,
+            $otpReasonCode,
+            ['expiredOtp' => date('c', strtotime('+300 seconds'))],// additionalInfo
+            $externalStoreId,
+        );
+
+        codecept_debug($otpResponse);
+        $this->assertEquals($otpResponse->responseCode, self::RESP_CODE_OTP);
+
+        sleep(1);
+
+        // Account Binding ================================
+        $sequence = '10';
+        $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
+        $chargeToken = $otpResponse->chargeToken ?? '';
+
+        $otpCode = readline('Please input the OTP before run testAccountUnbinding: ');
+
+        // clear the header
+        $this->autopay->setHeader('externalID', null);
+
+        $accountUnbindingResponse = $this->autopay->accountUnbinding(
+            $partnerReferenceNo,
+            $bankCardToken,
+            $chargeToken,
+            $otpCode,
+            $custIdMerchant // same value as accountBinding
+        );
+
+        codecept_debug($accountUnbindingResponse);
+        $this->assertEquals($accountUnbindingResponse->responseCode, self::RESP_CODE_ACCOUNT_UNBINDING);
+
+        codecept_debug("
+Main flow test completed. Thank you, and here is your potato...
+       ___
+    .-'   `'.
+  .'          \
+ /             \
+|               |
+|               |
+ \             /
+  `._       _.'
+     `''---''
+        ");
     }
 }
