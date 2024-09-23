@@ -26,6 +26,10 @@ class Autopay
 
     private $baseUrl;
 
+    // No need to hit getToken multiple times. Assumption: the multiple request
+    // is still done within the 900 seconds period (expiration time of token)
+    private $cacheAccessToken = '';
+
     // header for request
     private $origin     = 'www.spesandbox.com';
     private $ipAddress  = '127.0.0.1';
@@ -123,6 +127,10 @@ class Autopay
      */
     public function getToken()
     {
+        if (!empty($this->cacheAccessToken)) {
+            return $this->cacheAccessToken;
+        }
+
         $timestamp            = $this->utils->getTimeStamp();
         $url                  = $this->baseUrl . Constant::URL_AUTOPAY_ACCESS_TOKEN_B2B;
         $signatureAccessToken = $this->getSignatureToken($timestamp);
@@ -139,8 +147,12 @@ class Autopay
         ];
 
         $response = $this->httpClient->request('POST', $url, $header, $body);
+
+        $accessToken = json_decode($response->getBody())->accessToken ?? '';
+
+        $this->cacheAccessToken = $accessToken;
         
-        return json_decode($response->getBody())->accessToken;
+        return $this->cacheAccessToken;
     }
 
     /**
