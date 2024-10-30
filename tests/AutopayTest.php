@@ -512,6 +512,18 @@ class AutopayTest extends \Codeception\Test\Unit
 
         sleep(1);
 
+        // Debit Refund Status ==============================
+        // Hit debit status but with refund service code (58)
+        $refundStatusResponse = $this->autopay->debitStatus(
+            $partnerReferenceNo, // originalPartnerReferenceNo == debit partnerReferenceNo
+            $paymentDate, // same as response from debit
+            Autopay::SERVICECODE_REFUND,
+            $refundAmount
+        );
+
+        codecept_debug($refundStatusResponse);
+        $this->assertEquals($refundStatusResponse->responseCode, self::RESP_CODE_DEBIT_STATUS);
+
         // Balance Inquiry ================================
         $sequence = '05';
         $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
@@ -546,7 +558,7 @@ class AutopayTest extends \Codeception\Test\Unit
         
         sleep(1);
 
-        // OTP Set Limit ==================================
+        // OTP Set Limit UP ==================================
         $sequence = '07';
         $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
         $journeyID = $faker->numerify('###########');
@@ -568,12 +580,12 @@ class AutopayTest extends \Codeception\Test\Unit
 
         sleep(1);
 
-        // Set Limit ======================================
+        // Set Limit - UP  ======================================
         $sequence = '08';
         $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
 
         $otpCode = readline('Please input the OTP before run testSetLimit: ');
-        $newLimit = readline('New Limit (prev 250000.00): ');
+        $newLimit = 500000.00;
         $chargeToken = $otpResponse->chargeToken ?? '';
 
         // will cause the response to be "Conflict" if the header is not cleared
@@ -588,18 +600,56 @@ class AutopayTest extends \Codeception\Test\Unit
         );
         
         codecept_debug($setLimitResponse);
-        if ($newLimit > $limit) {
-            // applied immediately
-            $this->assertEquals($setLimitResponse->responseCode, self::RESP_CODE_SET_LIMIT);
-        } else {
-            // the changes will be applied at 00:00 / next day
-            $this->assertEquals($setLimitResponse->responseCode, self::RESP_CODE_SET_LIMIT_PENDING);
-        }
+        $this->assertEquals($setLimitResponse->responseCode, self::RESP_CODE_SET_LIMIT);
+
+        sleep(1);
+
+        // OTP Set Limit DOWN ===============================
+        $sequence = '09';
+        $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
+        $journeyID = $faker->numerify('###########');
+        $otpReasonCode = Autopay::OTP_CODE_CARD_REGISTRATION_SET_LIMIT;
+        $this->autopay->setHeader('externalID', $journeyID);
+        $externalStoreId = $faker->numerify('#############');
+
+        $otpResponse = $this->autopay->otp(
+            $partnerReferenceNo,
+            $journeyID,
+            $bankCardToken,
+            $otpReasonCode,
+            ['expiredOtp' => date('c', strtotime('+300 seconds'))],// additionalInfo
+            $externalStoreId,
+        );
+
+        codecept_debug($otpResponse);
+        $this->assertEquals($otpResponse->responseCode, self::RESP_CODE_OTP);
+
+        // Set Limit - DOWN ====================================
+        $sequence = '10';
+        $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
+
+        $otpCode = readline('Please input the OTP before run testSetLimit: ');
+        $newLimit = 300000.00;
+        $chargeToken = $otpResponse->chargeToken ?? '';
+
+        // will cause the response to be "Conflict" if the header is not cleared
+        $this->autopay->setHeader('externalID', null);
+
+        $setLimitResponse = $this->autopay->setLimit(
+            $partnerReferenceNo,
+            $bankCardToken,
+            $newLimit,
+            $chargeToken,
+            $otpCode
+        );
+        
+        codecept_debug($setLimitResponse);
+        $this->assertEquals($setLimitResponse->responseCode, self::RESP_CODE_SET_LIMIT_PENDING);
 
         sleep(1);
 
         // OTP Account Unbinding ===========================
-        $sequence = '09';
+        $sequence = '11';
         $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
         $journeyID = $faker->numerify('###########');
         $otpReasonCode = Autopay::OTP_CODE_ACCOUNT_UNBINDING;
@@ -621,8 +671,8 @@ class AutopayTest extends \Codeception\Test\Unit
 
         sleep(1);
 
-        // Account Binding ================================
-        $sequence = '10';
+        // Account Unbinding ================================
+        $sequence = '12';
         $partnerReferenceNo = $basePartnerReferenceNo . $sequence;
         $chargeToken = $otpResponse->chargeToken ?? '';
 
