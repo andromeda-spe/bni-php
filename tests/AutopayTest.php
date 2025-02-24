@@ -225,13 +225,11 @@ class AutopayTest extends \Codeception\Test\Unit
     public function testBalanceInquiry()
     {
         $partnerReferenceNo = '20231028999999929988893';
-        $accountNo = '1234555557';
         $amount = 1000.00;
         $bankCardToken = self::BANK_CARD_TOKEN;
 
         $response = $this->autopay->balanceInquiry(
             $partnerReferenceNo,
-            $accountNo,
             $amount,
             $bankCardToken
         );
@@ -530,7 +528,6 @@ class AutopayTest extends \Codeception\Test\Unit
 
         $balanceInquiryResponse = $this->autopay->balanceInquiry(
             $partnerReferenceNo,
-            $bankAccountNo,
             $amount,
             $bankCardToken
         );

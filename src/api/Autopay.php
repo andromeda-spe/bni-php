@@ -305,14 +305,12 @@ class Autopay
      * Balance Inquiry (Check if the balance of a bank account is sufficient for a transaction)
      *
      * @param string $partnerReferenceNo unique identifier string (max 64 chars)
-     * @param string $accountNo 10-11 digits of bank account number
      * @param float $amount transaction amount in float
      * @param string $bankCardToken unique customer identifier, generated when hit account binding API
      * @return Object
      */
     public function balanceInquiry(
         string $partnerReferenceNo,
-        string $accountNo,
         float $amount,
         string $bankCardToken
     )
@@ -324,7 +322,6 @@ class Autopay
 
         $data = [
             'partnerReferenceNo' => $partnerReferenceNo,
-            'accountNo'          => $accountNo,
             'additionalInfo' => [
                 'amount' => (string) $amount,
             ],
