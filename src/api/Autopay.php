@@ -493,7 +493,7 @@ class Autopay
      * OTP (Send an OTP code to customer)
      *
      * @param string $partnerReferenceNo unique identifier string (max 64 chars)
-     * @param string $journeyID 36 chars of unique identifier, should be the same as X-EXTERNAL-ID
+     * @param string $journeyID 36 chars of unique identifier, alphanumeric, should be the same as X-EXTERNAL-ID
      * @param string $bankCardToken unique customer identifier, generated when hit account binding API
      * @param string $otpReasonCode 02 | 09 | 53 | 54 (default)
      * @param array $additionalInfo ['expiredOtp' => date(DateTime::ATOM)]
