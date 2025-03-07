@@ -538,7 +538,7 @@ class Autopay
         $data = [
             'merchantId'         => $this->merchantID,
             'partnerReferenceNo' => $partnerReferenceNo,
-            'journeyID'          => $journeyID,
+            'journeyId'          => $journeyID,
             'bankCardToken'      => $bankCardToken,
             'otpReasonCode'      => $otpReasonCode,
             'otpReasonMessage'   => $otpReasonMessage,
