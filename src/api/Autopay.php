@@ -24,25 +24,27 @@ class Autopay
     const ENV_BETA   = 'beta';
     const ENV_PROD  = 'prod';
 
-    private $baseUrl;
+    protected $apiVersion = '/v1.1';
+
+    protected $baseUrl;
 
     // No need to hit getToken multiple times. Assumption: the multiple request
     // is still done within the 900 seconds period (expiration time of token)
-    private $cacheAccessToken = '';
+    protected $cacheAccessToken = '';
 
     // header for request
-    private $origin     = 'www.spesandbox.com';
-    private $ipAddress  = '127.0.0.1';
-    private $channelId  = '';
-    private $latitude   = '';
-    private $longitude  = '';
-    private $externalID = '';
+    protected $origin     = 'www.spesandbox.com';
+    protected $ipAddress  = '127.0.0.1';
+    protected $channelId  = '';
+    protected $latitude   = '';
+    protected $longitude  = '';
+    protected $externalID = '';
 
     // merchant credentials
-    private string $merchantID   = '';
-    private string $clientID     = '';
-    private string $clientSecret = '';
-    private string $privateKey   = '';
+    protected string $merchantID   = '';
+    protected string $clientID     = '';
+    protected string $clientSecret = '';
+    protected string $privateKey   = '';
 
     // OTP Reason Code
     const OTP_CODE_CARD_REGISTRATION_SET_LIMIT = '02';
@@ -184,9 +186,9 @@ class Autopay
      * @param string $timeStamp timestamp from utils getTimeStamp()
      * @return GuzzleHttp\Psr7\Response
      */
-    private function sendRequest(string $url, string $token, array $data, string $timeStamp)
+    protected function sendRequest(string $url, string $token, array $data, string $timeStamp)
     {
-        $signature = $this->getSignatureService($token, $url, $data);
+        $signature = $this->getSignatureService($token, $this->apiVersion . $url, $data);
 
         $externalID = $this->externalID ? $this->externalID : $this->utils->randomNumber();
 
@@ -206,7 +208,7 @@ class Autopay
         ];
 
         // set URL
-        $url = $this->baseUrl . $url;
+        $url = $this->baseUrl . $this->apiVersion . $url;
 
         $body = [
             RequestOptions::JSON => $data
