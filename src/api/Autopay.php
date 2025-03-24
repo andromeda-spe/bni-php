@@ -18,7 +18,6 @@ class Autopay
 {
     public $httpClient;
     public $utils;
-    public $bni;
 
     const ENV_ALPHA = 'alpha';
     const ENV_BETA   = 'beta';
