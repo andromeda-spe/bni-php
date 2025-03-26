@@ -18,31 +18,32 @@ class Autopay
 {
     public $httpClient;
     public $utils;
-    public $bni;
 
     const ENV_ALPHA = 'alpha';
     const ENV_BETA   = 'beta';
     const ENV_PROD  = 'prod';
 
-    private $baseUrl;
+    protected $apiVersion = '/v1.1';
+
+    protected $baseUrl;
 
     // No need to hit getToken multiple times. Assumption: the multiple request
     // is still done within the 900 seconds period (expiration time of token)
-    private $cacheAccessToken = '';
+    protected $cacheAccessToken = '';
 
     // header for request
-    private $origin     = 'www.spesandbox.com';
-    private $ipAddress  = '127.0.0.1';
-    private $channelId  = '';
-    private $latitude   = '';
-    private $longitude  = '';
-    private $externalID = '';
+    protected $origin     = 'www.spesandbox.com';
+    protected $ipAddress  = '127.0.0.1';
+    protected $channelId  = '';
+    protected $latitude   = '';
+    protected $longitude  = '';
+    protected $externalID = '';
 
     // merchant credentials
-    private string $merchantID   = '';
-    private string $clientID     = '';
-    private string $clientSecret = '';
-    private string $privateKey   = '';
+    protected string $merchantID   = '';
+    protected string $clientID     = '';
+    protected string $clientSecret = '';
+    protected string $privateKey   = '';
 
     // OTP Reason Code
     const OTP_CODE_CARD_REGISTRATION_SET_LIMIT = '02';
@@ -184,9 +185,9 @@ class Autopay
      * @param string $timeStamp timestamp from utils getTimeStamp()
      * @return GuzzleHttp\Psr7\Response
      */
-    private function sendRequest(string $url, string $token, array $data, string $timeStamp)
+    protected function sendRequest(string $url, string $token, array $data, string $timeStamp)
     {
-        $signature = $this->getSignatureService($token, $url, $data);
+        $signature = $this->getSignatureService($token, $this->apiVersion . $url, $data);
 
         $externalID = $this->externalID ? $this->externalID : $this->utils->randomNumber();
 
@@ -206,7 +207,7 @@ class Autopay
         ];
 
         // set URL
-        $url = $this->baseUrl . $url;
+        $url = $this->baseUrl . $this->apiVersion . $url;
 
         $body = [
             RequestOptions::JSON => $data
@@ -305,14 +306,12 @@ class Autopay
      * Balance Inquiry (Check if the balance of a bank account is sufficient for a transaction)
      *
      * @param string $partnerReferenceNo unique identifier string (max 64 chars)
-     * @param string $accountNo 10-11 digits of bank account number
      * @param float $amount transaction amount in float
      * @param string $bankCardToken unique customer identifier, generated when hit account binding API
      * @return Object
      */
     public function balanceInquiry(
         string $partnerReferenceNo,
-        string $accountNo,
         float $amount,
         string $bankCardToken
     )
@@ -324,7 +323,6 @@ class Autopay
 
         $data = [
             'partnerReferenceNo' => $partnerReferenceNo,
-            'accountNo'          => $accountNo,
             'additionalInfo' => [
                 'amount' => (string) $amount,
             ],
@@ -496,7 +494,7 @@ class Autopay
      * OTP (Send an OTP code to customer)
      *
      * @param string $partnerReferenceNo unique identifier string (max 64 chars)
-     * @param string $journeyID 36 chars of unique identifier, should be the same as X-EXTERNAL-ID
+     * @param string $journeyID 36 chars of unique identifier, alphanumeric, should be the same as X-EXTERNAL-ID
      * @param string $bankCardToken unique customer identifier, generated when hit account binding API
      * @param string $otpReasonCode 02 | 09 | 53 | 54 (default)
      * @param array $additionalInfo ['expiredOtp' => date(DateTime::ATOM)]
@@ -541,7 +539,7 @@ class Autopay
         $data = [
             'merchantId'         => $this->merchantID,
             'partnerReferenceNo' => $partnerReferenceNo,
-            'journeyID'          => $journeyID,
+            'journeyId'          => $journeyID,
             'bankCardToken'      => $bankCardToken,
             'otpReasonCode'      => $otpReasonCode,
             'otpReasonMessage'   => $otpReasonMessage,

@@ -33,16 +33,16 @@ class Constant
     const URL_AUTOPAY_SIGNATURE_AUTH    = '/api/v1.0/utilities/signature-auth';
     const URL_AUTOPAY_SIGNATURE_SERVICE = '/api/v1.0/utilities/signature-service';
 
-    const URL_AUTOPAY_ACCOUNT_BINDING   = '/v1.0/registration-account-binding';
-    const URL_AUTOPAY_ACCOUNT_UNBINDING = '/v1.0/registration-account-unbinding';
-    const URL_AUTOPAY_BALANCE_INQUIRY   = '/v1.0/balance-inquiry';
-    const URL_AUTOPAY_DEBIT             = '/v1.0/debit/payment-host-to-host';
-    const URL_AUTOPAY_DEBIT_REFUND      = '/v1.0/debit/refund';
-    const URL_AUTOPAY_DEBIT_STATUS      = '/v1.0/debit/status';
-    const URL_AUTOPAY_LIMIT_INQUIRY     = '/v1.0/limit-inquiry';
-    const URL_AUTOPAY_OTP               = '/v1.0/otp';
-    const URL_AUTOPAY_OTP_VERIFY        = '/v1.0/otp-verification';
-    const URL_AUTOPAY_SET_LIMIT         = '/v1.0/registration/card-bind-limit';
+    const URL_AUTOPAY_ACCOUNT_BINDING   = '/registration-account-binding';
+    const URL_AUTOPAY_ACCOUNT_UNBINDING = '/registration-account-unbinding';
+    const URL_AUTOPAY_BALANCE_INQUIRY   = '/balance-inquiry';
+    const URL_AUTOPAY_DEBIT             = '/debit/payment-host-to-host';
+    const URL_AUTOPAY_DEBIT_REFUND      = '/debit/refund';
+    const URL_AUTOPAY_DEBIT_STATUS      = '/debit/status';
+    const URL_AUTOPAY_LIMIT_INQUIRY     = '/limit-inquiry';
+    const URL_AUTOPAY_OTP               = '/otp';
+    const URL_AUTOPAY_OTP_VERIFY        = '/otp-verification';
+    const URL_AUTOPAY_SET_LIMIT         = '/registration/card-bind-limit';
 
     const URL_RDN_FACERECOGNITION = '/rekdana/v1.1/face/recog';
     const URL_RDN_CHECKSIDV2 = '/rdn/v2.1/checksid';
